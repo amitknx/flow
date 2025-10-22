@@ -4,7 +4,8 @@ server:
 spring:
   application:
     name: flow-api-service
-
+  profiles:
+    active: test
   threads:
     virtual:
       enabled: true
