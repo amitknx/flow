@@ -1,4 +1,4 @@
-package com.flow.flowboard.api.domain;
+package com.flow.flowboard.api.entity;
 
 import com.flow.flowboard.common.domain.AuditableEntity;
 import jakarta.persistence.*;

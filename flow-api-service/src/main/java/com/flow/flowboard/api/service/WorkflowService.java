@@ -1,9 +1,10 @@
 package com.flow.flowboard.api.service;
 
-import com.flow.flowboard.api.domain.Workflow;
+import com.flow.flowboard.api.entity.Workflow;
 import com.flow.flowboard.api.exception.WorkflowNotFoundException;
 import com.flow.flowboard.api.repository.WorkflowRepository;
 import com.flow.flowboard.common.dto.workflow.WorkflowCreateRequest;
+import com.flow.flowboard.common.dto.workflow.WorkflowDefinitionDto;
 import com.flow.flowboard.common.dto.workflow.WorkflowResponse;
 import com.flow.flowboard.common.dto.workflow.WorkflowUpdateRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -113,7 +114,7 @@ public class WorkflowService {
             .build();
     }
 
-    private String toJsonString(Object data) {
+    private String toJsonString(WorkflowDefinitionDto data) {
         try {
             return objectMapper.writeValueAsString(data);
         } catch (JsonProcessingException e) {
@@ -121,9 +122,9 @@ public class WorkflowService {
         }
     }
 
-    private Object parseJsonString(String json) {
+    private WorkflowDefinitionDto parseJsonString(String json) {
         try {
-            return objectMapper.readValue(json, Object.class);
+            return objectMapper.readValue(json, WorkflowDefinitionDto.class);
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to parse JSON data", e);
         }

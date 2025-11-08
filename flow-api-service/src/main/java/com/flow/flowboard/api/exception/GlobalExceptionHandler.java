@@ -28,6 +28,30 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(ExecutionNotFoundException.class)
+    public ProblemDetail handleExecutionNotFound(ExecutionNotFoundException ex) {
+        log.warn("Execution not found: {}", ex.getMessage());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.NOT_FOUND,
+            ex.getMessage()
+        );
+        problemDetail.setType(URI.create("https://flowboard.flow.com/errors/execution-not-found"));
+        problemDetail.setTitle("Execution Not Found");
+        return problemDetail;
+    }
+
+    @ExceptionHandler(InvalidExecutionStateException.class)
+    public ProblemDetail handleInvalidExecutionState(InvalidExecutionStateException ex) {
+        log.warn("Invalid execution state: {}", ex.getMessage());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_REQUEST,
+            ex.getMessage()
+        );
+        problemDetail.setType(URI.create("https://flowboard.flow.com/errors/invalid-execution-state"));
+        problemDetail.setTitle("Invalid Execution State");
+        return problemDetail;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidationException(MethodArgumentNotValidException ex) {
         log.debug("Validation error", ex);
