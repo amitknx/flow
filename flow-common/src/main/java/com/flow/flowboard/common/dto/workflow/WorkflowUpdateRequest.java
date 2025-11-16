@@ -18,7 +18,7 @@ public class WorkflowUpdateRequest {
     @Size(max = 2000, message = "Description must not exceed 2000 characters")
     private String description;
 
-    private Object data;
+    private WorkflowDefinitionDto data;
 
     private Boolean active;
 }

@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -22,5 +24,5 @@ public class WorkflowCreateRequest {
     private String description;
 
     @NotNull(message = "Data is required")
-    private Object data;
+    private WorkflowDefinitionDto data;
 }

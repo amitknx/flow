@@ -17,7 +17,7 @@ public class WorkflowResponse {
     private UUID id;
     private String name;
     private String description;
-    private Object data;
+    private WorkflowDefinitionDto data;
     private Boolean active;
     private Instant createdAt;
     private String createdBy;
