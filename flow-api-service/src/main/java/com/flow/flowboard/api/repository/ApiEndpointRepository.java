@@ -20,6 +20,12 @@ import java.util.UUID;
 public interface ApiEndpointRepository extends JpaRepository<ApiEndpoint, UUID> {
 
     /**
+     * Find endpoint by ID with eagerly loaded API (for execution)
+     */
+    @Query("SELECT e FROM ApiEndpoint e JOIN FETCH e.api WHERE e.id = :id")
+    Optional<ApiEndpoint> findByIdWithApi(@Param("id") UUID id);
+
+    /**
      * Find endpoint by ID (only active records)
      */
     Optional<ApiEndpoint> findByIdAndActiveTrue(UUID id);

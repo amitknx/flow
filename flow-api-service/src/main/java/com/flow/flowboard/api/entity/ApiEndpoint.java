@@ -42,6 +42,13 @@ public class ApiEndpoint extends AuditableEntity {
     private UUID id;
 
     /**
+     * Version field for optimistic locking to prevent dirty writes
+     */
+    @Version
+    @Column(name = "version_num")
+    private Long versionNum;
+
+    /**
      * Parent API this endpoint belongs to
      */
     @ManyToOne(fetch = FetchType.LAZY)

@@ -39,6 +39,13 @@ public class Api extends AuditableEntity {
     private UUID id;
 
     /**
+     * Version field for optimistic locking to prevent dirty writes
+     */
+    @Version
+    @Column(name = "version_num")
+    private Long versionNum;
+
+    /**
      * API name (e.g., "GitHub API", "Stripe API")
      */
     @Column(name = "name", nullable = false, length = 200)

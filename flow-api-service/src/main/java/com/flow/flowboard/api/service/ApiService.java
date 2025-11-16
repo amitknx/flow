@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -105,6 +107,13 @@ public class ApiService {
         Api api = apiRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ApiNotFoundException(id));
 
+        // Validate version number for optimistic locking
+        if (!api.getVersionNum().equals(request.getVersionNum())) {
+            throw new IllegalStateException(
+                    "API has been modified by another user. Please refresh and try again. " +
+                    "Expected version: " + request.getVersionNum() + ", Current version: " + api.getVersionNum());
+        }
+
         // Update fields selectively
         String newName = request.getName() != null ? request.getName() : api.getName();
         String newVersion = request.getVersion() != null ? request.getVersion() : api.getVersion();
@@ -141,16 +150,9 @@ public class ApiService {
             api.setRetryConfig(toJsonString(request.getRetryConfig()));
         }
 
-        // Update endpoints if provided - replace all existing endpoints
+        // Update endpoints if provided - smart update with IDs
         if (request.getEndpoints() != null) {
-            // Remove all existing endpoints
-            api.getEndpoints().clear();
-
-            // Add new endpoints
-            for (ApiEndpointDto endpointDto : request.getEndpoints()) {
-                ApiEndpoint endpoint = createEndpointEntity(api, endpointDto);
-                api.addEndpoint(endpoint);
-            }
+            updateEndpoints(api, request.getEndpoints());
         }
 
         if (request.getActive() != null) {
@@ -159,10 +161,73 @@ public class ApiService {
 
         Api updated = apiRepository.save(api);
 
-        log.info("Updated API: {} {} with {} endpoints",
-                updated.getName(), updated.getVersion(), updated.getEndpoints().size());
+        log.info("Updated API: {} {} (version {}) with {} endpoints",
+                updated.getName(), updated.getVersion(), updated.getVersionNum(), updated.getEndpoints().size());
 
         return toResponse(updated);
+    }
+
+    /**
+     * Smart endpoint update logic:
+     * - If endpoint has ID and exists: update it (with version check)
+     * - If endpoint has no ID: create new endpoint
+     * - Endpoints not in the request: remove them
+     */
+    private void updateEndpoints(Api api, List<ApiEndpointDto> endpointDtos) {
+
+        // Get requested endpoint IDs (non-null)
+        List<UUID> requestedEndpointIds = endpointDtos.stream()
+                .map(ApiEndpointDto::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        // Remove endpoints not in the request
+        api.getEndpoints().removeIf(endpoint ->
+                !requestedEndpointIds.contains(endpoint.getId()));
+
+        // Update existing or create new endpoints
+        for (ApiEndpointDto dto : endpointDtos) {
+            if (dto.getId() != null) {
+                // Update existing endpoint
+                ApiEndpoint existing = api.getEndpoints().stream()
+                        .filter(e -> e.getId().equals(dto.getId()))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Endpoint with ID " + dto.getId() + " not found in this API"));
+
+                // Check version for optimistic locking
+                if (dto.getVersionNum() != null && !existing.getVersionNum().equals(dto.getVersionNum())) {
+                    throw new IllegalStateException(
+                            "Endpoint '" + dto.getName() + "' has been modified by another user. " +
+                            "Expected version: " + dto.getVersionNum() + ", Current version: " + existing.getVersionNum());
+                }
+
+                // Update endpoint fields
+                updateEndpointFields(existing, dto);
+            } else {
+                // Create new endpoint
+                ApiEndpoint newEndpoint = createEndpointEntity(api, dto);
+                api.addEndpoint(newEndpoint);
+            }
+        }
+    }
+
+    /**
+     * Update existing endpoint fields from DTO
+     */
+    private void updateEndpointFields(ApiEndpoint endpoint, ApiEndpointDto dto) {
+        endpoint.setName(dto.getName());
+        endpoint.setDescription(dto.getDescription());
+        endpoint.setHttpMethod(dto.getHttpMethod());
+        endpoint.setEndpointPath(dto.getEndpointPath());
+        endpoint.setPathParams(toJsonString(dto.getPathParams()));
+        endpoint.setQueryParams(toJsonString(dto.getQueryParams()));
+        endpoint.setHeaders(toJsonString(dto.getHeaders()));
+        endpoint.setRequestBodyTemplate(toJsonString(dto.getRequestBodyTemplate()));
+        endpoint.setContentType(dto.getContentType());
+        endpoint.setResponseMapping(toJsonString(dto.getResponseMapping()));
+        endpoint.setTimeoutMs(dto.getTimeoutMs());
+        endpoint.setRetryConfig(toJsonString(dto.getRetryConfig()));
     }
 
     @Transactional
@@ -204,24 +269,52 @@ public class ApiService {
      * Convert entity to response DTO
      */
     private ApiResponse toResponse(Api api) {
-        // Count endpoints
-        int endpointCount = (int) endpointRepository.countByApi_IdAndActiveTrue(api.getId());
+        // Convert endpoints to DTOs
+        List<ApiEndpointDto> endpointDtos = api.getEndpoints().stream()
+                .filter(ApiEndpoint::getActive)
+                .map(this::toEndpointDto)
+                .toList();
 
         return ApiResponse.builder()
                 .id(api.getId())
+                .versionNum(api.getVersionNum())
                 .name(api.getName())
                 .version(api.getVersion())
                 .baseUrl(api.getBaseUrl())
                 .description(api.getDescription())
+                .authentication(parseJsonStringToAuthentication(api.getAuthentication()))
                 .tags(api.getTags())
                 .timeoutMs(api.getTimeoutMs())
                 .retryConfig(parseJsonStringToRetryConfig(api.getRetryConfig()))
-                .endpointCount(endpointCount)
+                .endpoints(endpointDtos)
+                .endpointCount(endpointDtos.size())
                 .active(api.getActive())
                 .createdAt(api.getCreatedAt())
                 .createdBy(api.getCreatedBy())
                 .modifiedAt(api.getModifiedAt())
                 .modifiedBy(api.getModifiedBy())
+                .build();
+    }
+
+    /**
+     * Convert ApiEndpoint entity to DTO
+     */
+    private ApiEndpointDto toEndpointDto(ApiEndpoint endpoint) {
+        return ApiEndpointDto.builder()
+                .id(endpoint.getId())
+                .versionNum(endpoint.getVersionNum())
+                .name(endpoint.getName())
+                .description(endpoint.getDescription())
+                .httpMethod(endpoint.getHttpMethod())
+                .endpointPath(endpoint.getEndpointPath())
+                .pathParams(parseJsonStringToMap(endpoint.getPathParams()))
+                .queryParams(parseJsonStringToMap(endpoint.getQueryParams()))
+                .headers(parseJsonStringToStringMap(endpoint.getHeaders()))
+                .requestBodyTemplate(parseJsonStringToObject(endpoint.getRequestBodyTemplate()))
+                .contentType(endpoint.getContentType())
+                .responseMapping(parseJsonStringToStringMap(endpoint.getResponseMapping()))
+                .timeoutMs(endpoint.getTimeoutMs())
+                .retryConfig(parseJsonStringToRetryConfig(endpoint.getRetryConfig()))
                 .build();
     }
 
@@ -257,6 +350,54 @@ public class ApiService {
             return objectMapper.readValue(json, com.flow.flowboard.common.dto.credential.RetryConfigDto.class);
         } catch (JsonProcessingException e) {
             log.error("Failed to parse JSON to RetryConfigDto", e);
+            return null;
+        }
+    }
+
+    private com.flow.flowboard.common.dto.auth.ApiAuthenticationDto parseJsonStringToAuthentication(String json) {
+        if (json == null || json.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, com.flow.flowboard.common.dto.auth.ApiAuthenticationDto.class);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to parse JSON to ApiAuthenticationDto", e);
+            return null;
+        }
+    }
+
+    private Map<String, Object> parseJsonStringToMap(String json) {
+        if (json == null || json.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        } catch (JsonProcessingException e) {
+            log.error("Failed to parse JSON to Map", e);
+            return null;
+        }
+    }
+
+    private Map<String, String> parseJsonStringToStringMap(String json) {
+        if (json == null || json.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<Map<String, String>>() {});
+        } catch (JsonProcessingException e) {
+            log.error("Failed to parse JSON to String Map", e);
+            return null;
+        }
+    }
+
+    private Object parseJsonStringToObject(String json) {
+        if (json == null || json.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, Object.class);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to parse JSON to Object", e);
             return null;
         }
     }

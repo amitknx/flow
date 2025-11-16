@@ -1,8 +1,11 @@
 package com.flow.flowboard.api.controller;
 
 import com.flow.flowboard.api.service.ApiEndpointService;
+import com.flow.flowboard.api.service.ApiExecutorService;
 import com.flow.flowboard.common.dto.api.ApiEndpointDto;
 import com.flow.flowboard.common.dto.api.ApiEndpointResponse;
+import com.flow.flowboard.common.dto.execution.ExecuteEndpointRequest;
+import com.flow.flowboard.common.dto.execution.ExecuteEndpointResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -11,12 +14,13 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.UUID;
 
 /**
- * REST controller for API endpoint management
+ * REST controller for API endpoint management and execution
  *
  * Endpoints can be managed either:
  * 1. During API creation (nested in ApiCreateRequest)
@@ -29,6 +33,7 @@ import java.util.UUID;
  * - GET    /api/v1/apis/{apiId}/endpoints/{name}    - Get endpoint by name within API
  * - PUT    /api/v1/endpoints/{id}                   - Update endpoint
  * - DELETE /api/v1/endpoints/{id}                   - Delete endpoint (soft delete)
+ * - POST   /api/v1/endpoints/{id}/execute           - Execute endpoint with parameters
  */
 @RestController
 @RequiredArgsConstructor
@@ -36,6 +41,7 @@ import java.util.UUID;
 public class ApiEndpointController {
 
     private final ApiEndpointService endpointService;
+    private final ApiExecutorService executorService;
 
     /**
      * Create a new endpoint in an API
@@ -148,5 +154,43 @@ public class ApiEndpointController {
     public ResponseEntity<Void> deleteEndpoint(@PathVariable("id") UUID id) {
         endpointService.deleteEndpoint(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Execute an API endpoint
+     * This endpoint allows testing and executing configured API endpoints with:
+     * - Path parameters (e.g., {{userId}})
+     * - Query parameters
+     * - Custom headers
+     * - Request body (for POST/PUT/PATCH)
+     * - Override authentication
+     * - Custom timeout
+     * Returns detailed execution results including:
+     * - HTTP status and response
+     * - Response headers
+     * - Response body (parsed JSON or raw string)
+     * - Execution timing
+     * - Error details (if any)
+     *
+     * @param id endpoint ID to execute
+     * @param request execution parameters
+     * @return execution response wrapped in Mono (reactive)
+     */
+    @PostMapping("/api/v1/endpoints/{id}/execute")
+    public Mono<ResponseEntity<ExecuteEndpointResponse>> executeEndpoint(
+            @PathVariable("id") UUID id,
+            @Valid @RequestBody(required = false) ExecuteEndpointRequest request) {
+
+        // Use empty request if not provided
+        ExecuteEndpointRequest executionRequest = request != null
+                ? request
+                : ExecuteEndpointRequest.builder().build();
+
+        return executorService.executeEndpoint(id, executionRequest)
+                .map(ResponseEntity::ok)
+                .onErrorResume(IllegalStateException.class, e ->
+                        Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).build()))
+                .onErrorResume(Exception.class, e ->
+                        Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()));
     }
 }
