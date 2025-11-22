@@ -13,12 +13,13 @@ public class InMemoryTaskQueue implements TaskQueue {
     private final Sinks.Many<ExecutionTask> sink;
 
     public InMemoryTaskQueue() {
-        this.sink = Sinks.many().multicast().onBackpressureBuffer();
+        this.sink = Sinks.many().unicast().onBackpressureBuffer();
     }
 
     @Override
     public Mono<Void> push(ExecutionTask task) {
         return Mono.fromRunnable(() -> {
+            System.out.println("InMemoryTaskQueue: Pushing task " + task.nodeId());
             Sinks.EmitResult result = sink.tryEmitNext(task);
             if (result.isFailure()) {
                 throw new RuntimeException("Failed to emit task: " + result);
@@ -34,6 +35,7 @@ public class InMemoryTaskQueue implements TaskQueue {
 
     @Override
     public Flux<ExecutionTask> receive() {
+        System.out.println("InMemoryTaskQueue: receive() called");
         return sink.asFlux();
     }
 }

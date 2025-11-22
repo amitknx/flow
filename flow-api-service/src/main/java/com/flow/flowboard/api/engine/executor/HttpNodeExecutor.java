@@ -28,7 +28,7 @@ public class HttpNodeExecutor implements NodeExecutor {
         Map<String, Object> context = task.context();
 
         // Extract apiEndpointId from context
-        String endpointIdStr = (String) context.get("apiEndpointId");
+        String endpointIdStr = (String) context.get("endpointId");
         if (endpointIdStr == null) {
             return Mono.error(new IllegalArgumentException("apiEndpointId is required for HTTP_REQUEST node"));
         }

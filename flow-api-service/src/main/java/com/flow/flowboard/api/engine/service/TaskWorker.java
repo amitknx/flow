@@ -5,6 +5,8 @@ import com.flow.flowboard.api.engine.queue.TaskQueue;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Mono;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,8 +22,19 @@ public class TaskWorker {
 
     @PostConstruct
     public void start() {
+        log.info("TaskWorker: Starting...");
         taskQueue.receive()
+                .doOnSubscribe(s -> log.info("TaskWorker: Subscribed to queue"))
+                .doOnNext(task -> log.info("TaskWorker: Received task {}", task.nodeId()))
                 .flatMap(task -> {
+                    // START and END nodes are placeholders - auto-complete them
+                    if (task.nodeType() == com.flow.flowboard.common.domain.NodeType.START ||
+                            task.nodeType() == com.flow.flowboard.common.domain.NodeType.END) {
+                        log.info("Auto-completing {} node: {}", task.nodeType(), task.nodeId());
+                        orchestrator.handleStepCompletion(task.stepId(), java.util.Collections.emptyMap());
+                        return Mono.empty();
+                    }
+
                     NodeExecutor executor = executors.stream()
                             .filter(e -> e.supports(task.nodeType()))
                             .findFirst()
@@ -29,7 +42,7 @@ public class TaskWorker {
 
                     if (executor == null) {
                         log.warn("No executor found for type: {}", task.nodeType());
-                        return reactor.core.publisher.Mono.empty();
+                        return Mono.empty();
                     }
 
                     return executor.execute(task)
@@ -39,7 +52,7 @@ public class TaskWorker {
                             .onErrorResume(e -> {
                                 log.error("Task failed for step {}", task.stepId(), e);
                                 orchestrator.handleStepFailure(task.stepId(), e.getMessage());
-                                return reactor.core.publisher.Mono.empty();
+                                return Mono.empty();
                             });
                 })
                 .subscribe();

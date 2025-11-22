@@ -61,7 +61,17 @@ public class WorkflowOrchestrator {
                 .orElseThrow(() -> new RuntimeException("Step not found: " + stepId));
 
         step.setStatus(StepStatus.SUCCESS);
-        // TODO: Save output if needed
+
+        // Save output payload
+        if (output != null && !output.isEmpty()) {
+            try {
+                String outputJson = objectMapper.writeValueAsString(output);
+                step.setOutputPayload(outputJson);
+            } catch (Exception e) {
+                log.error("Failed to serialize output for step {}", stepId, e);
+            }
+        }
+
         stepExecutionRepository.save(step);
 
         WorkflowExecution execution = step.getWorkflowExecution();
@@ -86,6 +96,32 @@ public class WorkflowOrchestrator {
                         .orElseThrow();
                 queueNode(childNode, stepMap.get(childId), execution.getId());
             }
+        }
+
+        // Check if workflow is complete
+        checkAndCompleteWorkflow(execution, allSteps);
+    }
+
+    private void checkAndCompleteWorkflow(WorkflowExecution execution, List<StepExecution> allSteps) {
+        // Check if all steps are in a terminal state (SUCCESS or FAILED)
+        boolean allComplete = allSteps.stream()
+                .allMatch(s -> s.getStatus() == StepStatus.SUCCESS || s.getStatus() == StepStatus.FAILED);
+
+        if (allComplete) {
+            // Check if any step failed
+            boolean anyFailed = allSteps.stream()
+                    .anyMatch(s -> s.getStatus() == StepStatus.FAILED);
+
+            if (anyFailed) {
+                execution.setStatus(com.flow.flowboard.common.domain.ExecutionStatus.FAILED);
+                log.info("Workflow execution {} completed with FAILED status", execution.getId());
+            } else {
+                execution.setStatus(com.flow.flowboard.common.domain.ExecutionStatus.SUCCESS);
+                log.info("Workflow execution {} completed with SUCCESS status", execution.getId());
+            }
+
+            execution.setEndedAt(java.time.Instant.now());
+            executionRepository.save(execution);
         }
     }
 
