@@ -10,6 +10,11 @@ public enum StepStatus {
     PENDING,
 
     /**
+     * Step is queued for execution.
+     */
+    QUEUED,
+
+    /**
      * Step is currently executing.
      */
     RUNNING,
