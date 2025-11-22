@@ -42,25 +42,26 @@ public class ExecutionService {
     private final WorkflowExecutionRepository executionRepository;
     private final StepExecutionRepository stepExecutionRepository;
     private final ObjectMapper objectMapper;
+    private final com.flow.flowboard.api.engine.service.WorkflowOrchestrator orchestrator;
 
     @Transactional
     public ExecutionResponse createExecution(ExecutionCreateRequest request) {
         // Validate workflow exists
         Workflow workflow = workflowRepository.findById(request.getWorkflowId())
-            .orElseThrow(() -> new WorkflowNotFoundException(request.getWorkflowId()));
+                .orElseThrow(() -> new WorkflowNotFoundException(request.getWorkflowId()));
 
         // Take immutable snapshot of workflow definition
         String definitionSnapshot = workflow.getData();
 
         // Create workflow execution
         WorkflowExecution execution = WorkflowExecution.builder()
-            .workflow(workflow)
-            .correlationId(request.getCorrelationId())
-            .status(ExecutionStatus.PENDING)
-            .triggerType(request.getTriggerType())
-            .triggerInput(toJsonString(request.getTriggerInput()))
-            .definitionSnapshotJson(definitionSnapshot)
-            .build();
+                .workflow(workflow)
+                .correlationId(request.getCorrelationId())
+                .status(ExecutionStatus.PENDING)
+                .triggerType(request.getTriggerType())
+                .triggerInput(toJsonString(request.getTriggerInput()))
+                .definitionSnapshotJson(definitionSnapshot)
+                .build();
 
         WorkflowExecution savedExecution = executionRepository.save(execution);
 
@@ -71,16 +72,19 @@ public class ExecutionService {
         log.info("Created workflow execution {} for workflow {} with trigger type {}",
                 savedExecution.getId(), workflow.getId(), request.getTriggerType());
 
+        // Start execution asynchronously
+        orchestrator.startExecution(savedExecution.getId());
+
         return toExecutionResponse(savedExecution, stepExecutions);
     }
 
     @Transactional(readOnly = true)
     public ExecutionResponse getExecutionById(UUID id) {
         WorkflowExecution execution = executionRepository.findByIdAndActiveTrue(id)
-            .orElseThrow(() -> new ExecutionNotFoundException(id));
+                .orElseThrow(() -> new ExecutionNotFoundException(id));
 
         List<StepExecution> stepExecutions = stepExecutionRepository
-            .findByWorkflowExecution_IdAndActiveTrueOrderByCreatedAt(id);
+                .findByWorkflowExecution_IdAndActiveTrueOrderByCreatedAt(id);
 
         return toExecutionResponse(execution, stepExecutions);
     }
@@ -88,56 +92,56 @@ public class ExecutionService {
     @Transactional(readOnly = true)
     public ExecutionStatusResponse getExecutionStatus(UUID id) {
         WorkflowExecution execution = executionRepository.findByIdAndActiveTrue(id)
-            .orElseThrow(() -> new ExecutionNotFoundException(id));
+                .orElseThrow(() -> new ExecutionNotFoundException(id));
 
         long totalSteps = stepExecutionRepository.countByWorkflowExecutionId(id);
         long completedSteps = stepExecutionRepository.countCompletedByWorkflowExecutionId(id);
 
         int progressPercentage = totalSteps > 0
-            ? (int) ((completedSteps * 100) / totalSteps)
-            : 0;
+                ? (int) ((completedSteps * 100) / totalSteps)
+                : 0;
 
         return ExecutionStatusResponse.builder()
-            .id(execution.getId())
-            .status(execution.getStatus())
-            .completedSteps((int) completedSteps)
-            .totalSteps((int) totalSteps)
-            .progressPercentage(progressPercentage)
-            .startedAt(execution.getStartedAt())
-            .endedAt(execution.getEndedAt())
-            .build();
+                .id(execution.getId())
+                .status(execution.getStatus())
+                .completedSteps((int) completedSteps)
+                .totalSteps((int) totalSteps)
+                .progressPercentage(progressPercentage)
+                .startedAt(execution.getStartedAt())
+                .endedAt(execution.getEndedAt())
+                .build();
     }
 
     @Transactional(readOnly = true)
     public Page<ExecutionResponse> listExecutionsByWorkflow(UUID workflowId, Pageable pageable) {
         return executionRepository.findByWorkflow_IdAndActiveTrue(workflowId, pageable)
-            .map(execution -> {
-                List<StepExecution> steps = stepExecutionRepository
-                    .findByWorkflowExecution_IdAndActiveTrueOrderByCreatedAt(execution.getId());
-                return toExecutionResponse(execution, steps);
-            });
+                .map(execution -> {
+                    List<StepExecution> steps = stepExecutionRepository
+                            .findByWorkflowExecution_IdAndActiveTrueOrderByCreatedAt(execution.getId());
+                    return toExecutionResponse(execution, steps);
+                });
     }
 
     @Transactional(readOnly = true)
     public Page<ExecutionResponse> getAllExecutions(Pageable pageable) {
         return executionRepository.findByActiveTrue(pageable)
-            .map(execution -> {
-                List<StepExecution> steps = stepExecutionRepository
-                    .findByWorkflowExecution_IdAndActiveTrueOrderByCreatedAt(execution.getId());
-                return toExecutionResponse(execution, steps);
-            });
+                .map(execution -> {
+                    List<StepExecution> steps = stepExecutionRepository
+                            .findByWorkflowExecution_IdAndActiveTrueOrderByCreatedAt(execution.getId());
+                    return toExecutionResponse(execution, steps);
+                });
     }
 
     @Transactional
     public ExecutionResponse cancelExecution(UUID id) {
         WorkflowExecution execution = executionRepository.findByIdAndActiveTrue(id)
-            .orElseThrow(() -> new ExecutionNotFoundException(id));
+                .orElseThrow(() -> new ExecutionNotFoundException(id));
 
         if (execution.getStatus() == ExecutionStatus.SUCCESS ||
-            execution.getStatus() == ExecutionStatus.FAILED ||
-            execution.getStatus() == ExecutionStatus.CANCELLED) {
+                execution.getStatus() == ExecutionStatus.FAILED ||
+                execution.getStatus() == ExecutionStatus.CANCELLED) {
             throw new InvalidExecutionStateException(
-                "Cannot cancel execution in " + execution.getStatus() + " state");
+                    "Cannot cancel execution in " + execution.getStatus() + " state");
         }
 
         execution.setStatus(ExecutionStatus.CANCELLED);
@@ -146,7 +150,7 @@ public class ExecutionService {
         WorkflowExecution updated = executionRepository.save(execution);
 
         List<StepExecution> stepExecutions = stepExecutionRepository
-            .findByWorkflowExecution_IdAndActiveTrueOrderByCreatedAt(id);
+                .findByWorkflowExecution_IdAndActiveTrueOrderByCreatedAt(id);
 
         log.info("Cancelled execution {}", id);
 
@@ -158,7 +162,8 @@ public class ExecutionService {
 
         try {
             // Parse workflow data to extract nodes
-            WorkflowDefinitionDto workflowDefinition = objectMapper.readValue(workflowData, WorkflowDefinitionDto.class);
+            WorkflowDefinitionDto workflowDefinition = objectMapper.readValue(workflowData,
+                    WorkflowDefinitionDto.class);
             List<NodeDto> nodes = workflowDefinition.getNodes();
 
             if (nodes != null) {
@@ -166,15 +171,15 @@ public class ExecutionService {
                     String nodeId = node.getId();
                     Map<String, Object> nodeData = node.getData();
                     String stepName = nodeData != null && nodeData.containsKey("label")
-                        ? (String) nodeData.get("label")
-                        : node.getName() != null ? node.getName() : nodeId;
+                            ? (String) nodeData.get("label")
+                            : node.getName() != null ? node.getName() : nodeId;
 
                     StepExecution stepExecution = StepExecution.builder()
-                        .workflowExecution(execution)
-                        .nodeIdRef(nodeId)
-                        .stepName(stepName)
-                        .status(StepStatus.PENDING)
-                        .build();
+                            .workflowExecution(execution)
+                            .nodeIdRef(nodeId)
+                            .stepName(stepName)
+                            .status(StepStatus.PENDING)
+                            .build();
 
                     stepExecutions.add(stepExecution);
                 }
@@ -189,40 +194,40 @@ public class ExecutionService {
 
     private ExecutionResponse toExecutionResponse(WorkflowExecution execution, List<StepExecution> stepExecutions) {
         return ExecutionResponse.builder()
-            .id(execution.getId())
-            .workflowId(execution.getWorkflow().getId())
-            .correlationId(execution.getCorrelationId())
-            .status(execution.getStatus())
-            .triggerType(execution.getTriggerType())
-            .triggerInput(parseJsonString(execution.getTriggerInput()))
-            .definitionSnapshot(parseWorkflowDefinition(execution.getDefinitionSnapshotJson()))
-            .startedAt(execution.getStartedAt())
-            .endedAt(execution.getEndedAt())
-            .active(execution.getActive())
-            .createdAt(execution.getCreatedAt())
-            .createdBy(execution.getCreatedBy())
-            .modifiedAt(execution.getModifiedAt())
-            .modifiedBy(execution.getModifiedBy())
-            .stepExecutions(stepExecutions.stream()
-                .map(this::toStepExecutionResponse)
-                .collect(Collectors.toList()))
-            .build();
+                .id(execution.getId())
+                .workflowId(execution.getWorkflow().getId())
+                .correlationId(execution.getCorrelationId())
+                .status(execution.getStatus())
+                .triggerType(execution.getTriggerType())
+                .triggerInput(parseJsonString(execution.getTriggerInput()))
+                .definitionSnapshot(parseWorkflowDefinition(execution.getDefinitionSnapshotJson()))
+                .startedAt(execution.getStartedAt())
+                .endedAt(execution.getEndedAt())
+                .active(execution.getActive())
+                .createdAt(execution.getCreatedAt())
+                .createdBy(execution.getCreatedBy())
+                .modifiedAt(execution.getModifiedAt())
+                .modifiedBy(execution.getModifiedBy())
+                .stepExecutions(stepExecutions.stream()
+                        .map(this::toStepExecutionResponse)
+                        .collect(Collectors.toList()))
+                .build();
     }
 
     private StepExecutionResponse toStepExecutionResponse(StepExecution step) {
         return StepExecutionResponse.builder()
-            .id(step.getId())
-            .workflowExecutionId(step.getWorkflowExecution().getId())
-            .nodeIdRef(step.getNodeIdRef())
-            .stepName(step.getStepName())
-            .status(step.getStatus())
-            .inputPayload(parseJsonString(step.getInputPayload()))
-            .outputPayload(parseJsonString(step.getOutputPayload()))
-            .errorMessage(step.getErrorMessage())
-            .startedAt(step.getStartedAt())
-            .endedAt(step.getEndedAt())
-            .durationMs(step.getDurationMs())
-            .build();
+                .id(step.getId())
+                .workflowExecutionId(step.getWorkflowExecution().getId())
+                .nodeIdRef(step.getNodeIdRef())
+                .stepName(step.getStepName())
+                .status(step.getStatus())
+                .inputPayload(parseJsonString(step.getInputPayload()))
+                .outputPayload(parseJsonString(step.getOutputPayload()))
+                .errorMessage(step.getErrorMessage())
+                .startedAt(step.getStartedAt())
+                .endedAt(step.getEndedAt())
+                .durationMs(step.getDurationMs())
+                .build();
     }
 
     private String toJsonString(Object data) {
