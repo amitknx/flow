@@ -13,4 +13,5 @@ public class EdgeDto {
     private String id;
     private String source;
     private String target;
+    private String sourceHandle; // For conditional nodes: "true" or "false"
 }

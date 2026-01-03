@@ -4,5 +4,6 @@ public enum NodeType {
     START,
     END,
     HTTP_REQUEST,
-    DELAY
+    DELAY,
+    CONDITIONAL
 }

@@ -140,6 +140,40 @@ public class RequestBuilder {
     }
 
     /**
+     * Build map of all headers that will be sent with the request
+     */
+    public Map<String, String> buildHeaders(
+            ApiEndpoint endpoint,
+            ExecuteEndpointRequest request,
+            ApiAuthenticationDto authentication) {
+
+        Map<String, String> headers = new HashMap<>();
+
+        // 1. Endpoint headers
+        Map<String, String> endpointHeaders = parseHeaders(endpoint.getHeaders());
+        if (endpointHeaders != null) {
+            headers.putAll(endpointHeaders);
+        }
+
+        // 2. Request override headers
+        if (request.getHeaders() != null) {
+            headers.putAll(request.getHeaders());
+        }
+
+        // 3. Authentication headers
+        if (authentication != null) {
+            for (AuthenticationStrategy strategy : authenticationStrategies) {
+                if (strategy.supports(authentication)) {
+                    strategy.contributeHeaders(headers, authentication);
+                    break;
+                }
+            }
+        }
+
+        return headers;
+    }
+
+    /**
      * Parse JSON string to Map with proper type handling
      */
     public Map<String, String> parseHeaders(String json) {
@@ -148,7 +182,8 @@ public class RequestBuilder {
         }
 
         try {
-            return objectMapper.readValue(json, new TypeReference<Map<String, String>>() {});
+            return objectMapper.readValue(json, new TypeReference<Map<String, String>>() {
+            });
         } catch (Exception e) {
             log.error("Failed to parse headers JSON", e);
             return new HashMap<>();

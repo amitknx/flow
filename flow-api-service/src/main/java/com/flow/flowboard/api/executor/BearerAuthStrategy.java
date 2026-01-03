@@ -30,4 +30,11 @@ public class BearerAuthStrategy implements AuthenticationStrategy {
     public boolean supports(ApiAuthenticationDto authentication) {
         return authentication instanceof BearerAuthDto;
     }
+
+    @Override
+    public void contributeHeaders(java.util.Map<String, String> headers, ApiAuthenticationDto authentication) {
+        BearerAuthDto bearerAuth = (BearerAuthDto) authentication;
+        String token = bearerAuth.getToken();
+        headers.put("Authorization", "Bearer " + token);
+    }
 }

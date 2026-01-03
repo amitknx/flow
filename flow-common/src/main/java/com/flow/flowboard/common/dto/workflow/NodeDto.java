@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 
 import java.util.Map;
 
+import com.flow.flowboard.common.domain.NodeType;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -15,7 +17,7 @@ public class NodeDto {
     private String id;
     private Map<String, Object> data;
     private String name;
-    private String type;
+    private NodeType type;
     private PositionDto position;
     private String sourcePosition;
 }

@@ -1,0 +1,88 @@
+{
+  "id": "5d79836a-b516-4949-bf7a-5a746e51696b",
+  "name": "flow-20251109-201054",
+  "description": "vcxvxcbvxc",
+  "createdAt": "2025-11-09T14:40:54.616954Z",
+  "createdBy": "system",
+  "tags": [],
+  "edges": [
+    {
+      "id": "edge_start_1762699254547_node_1762699260016_z8ggtgpdu_1762699262687",
+      "source": "start_1762699254547",
+      "target": "node_1762699260016_z8ggtgpdu"
+    },
+    {
+      "id": "edge_node_1762699260016_z8ggtgpdu_node_1762699265941_8rtze0byd_1762699273370",
+      "source": "node_1762699260016_z8ggtgpdu",
+      "target": "node_1762699265941_8rtze0byd"
+    },
+    {
+      "id": "edge_node_1762699265941_8rtze0byd_node_1762699269237_iep5c8ohk_1762699278703",
+      "source": "node_1762699265941_8rtze0byd",
+      "target": "node_1762699269237_iep5c8ohk"
+    },
+    {
+      "id": "edge_node_1762699269237_iep5c8ohk_end_1762699254547_1762699283950",
+      "source": "node_1762699269237_iep5c8ohk",
+      "target": "end_1762699254547"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start_1762699254547",
+      "data": {},
+      "name": "Start",
+      "type": "START",
+      "position": {
+        "x": 200,
+        "y": 20
+      },
+      "sourcePosition": "right"
+    },
+    {
+      "id": "end_1762699254547",
+      "data": {},
+      "name": "End",
+      "type": "END",
+      "position": {
+        "x": 861,
+        "y": 0.5
+      },
+      "sourcePosition": "left"
+    },
+    {
+      "id": "node_1762699260016_z8ggtgpdu",
+      "data": {},
+      "name": "Http request Node",
+      "type": "HTTP_REQUEST",
+      "position": {
+        "x": 355,
+        "y": -104.75
+      },
+      "sourcePosition": null
+    },
+    {
+      "id": "node_1762699265941_8rtze0byd",
+      "data": {},
+      "name": "Delay Node",
+      "type": "DELAY",
+      "position": {
+        "x": 509.5,
+        "y": -105.75
+      },
+      "sourcePosition": null
+    },
+    {
+      "id": "node_1762699269237_iep5c8ohk",
+      "data": {},
+      "name": "Http request Node",
+      "type": "HTTP_REQUEST",
+      "position": {
+        "x": 639,
+        "y": -108.75
+      },
+      "sourcePosition": null
+    }
+  ],
+  "globals": {}
+}

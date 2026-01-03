@@ -32,18 +32,21 @@ public class ResponseHandler {
     /**
      * Handle successful response
      */
+    /**
+     * Handle successful response
+     */
     public ExecuteEndpointResponse handleResponse(
             Map<String, String> responseHeaders,
             HttpStatus status,
             Instant startTime,
             String requestUrl,
             ApiEndpoint endpoint,
-            String body) {
+            String body,
+            Map<String, String> requestHeaders,
+            Object requestBody) {
 
         Instant endTime = Instant.now();
         long durationMs = Duration.between(startTime, endTime).toMillis();
-//        org.springframework.http.HttpStatus status =
-//                (org.springframework.http.HttpStatus) response.statusCode();
 
         return ExecuteEndpointResponse.builder()
                 .status(status.is2xxSuccessful() ? "SUCCESS" : "FAILED")
@@ -56,18 +59,23 @@ public class ResponseHandler {
                 .httpMethod(endpoint.getHttpMethod().name())
                 .responseHeaders(responseHeaders)
                 .responseBody(parseResponseBody(body))
+                .requestHeaders(requestHeaders)
+                .requestBody(requestBody)
                 .build();
     }
 
     /**
      * Handle error response
-     * Unwraps RetryExhaustedException and maps errors to appropriate HTTP status codes
+     * Unwraps RetryExhaustedException and maps errors to appropriate HTTP status
+     * codes
      */
     public Mono<ExecuteEndpointResponse> handleError(
             Throwable error,
             Instant startTime,
             String requestUrl,
-            ApiEndpoint endpoint) {
+            ApiEndpoint endpoint,
+            Map<String, String> requestHeaders,
+            Object requestBody) {
 
         Instant endTime = Instant.now();
         long durationMs = Duration.between(startTime, endTime).toMillis();
@@ -89,7 +97,9 @@ public class ResponseHandler {
                 .httpMethod(endpoint.getHttpMethod().name())
                 .httpStatusCode(errorInfo.httpStatus.value())
                 .httpStatusText(errorInfo.httpStatus.getReasonPhrase())
-                .errorMessage(errorInfo.errorMessage);
+                .errorMessage(errorInfo.errorMessage)
+                .requestHeaders(requestHeaders)
+                .requestBody(requestBody);
 
         // Add response body if it's a WebClient error with response
         if (actualError instanceof WebClientResponseException webClientEx) {
@@ -160,8 +170,8 @@ public class ResponseHandler {
         // Default: Internal Server Error
         return new ErrorInfo(
                 HttpStatus.INTERNAL_SERVER_ERROR,
-                "Request Failed: " + (error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName())
-        );
+                "Request Failed: "
+                        + (error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName()));
     }
 
     /**
@@ -175,8 +185,7 @@ public class ResponseHandler {
      */
     private Map<String, String> extractHeaders(ClientResponse clientResponse) {
         Map<String, String> headers = new HashMap<>();
-        clientResponse.headers().asHttpHeaders().forEach((key, values) ->
-                headers.put(key, String.join(", ", values)));
+        clientResponse.headers().asHttpHeaders().forEach((key, values) -> headers.put(key, String.join(", ", values)));
         return headers;
     }
 

@@ -51,7 +51,7 @@ public class WorkflowOrchestrator {
                 .toList();
 
         for (NodeDto node : startNodes) {
-            queueNode(node, stepMap.get(node.getId()), executionId);
+            queueNode(node, stepMap.get(node.getId()), executionId, null);
         }
     }
 
@@ -82,19 +82,38 @@ public class WorkflowOrchestrator {
         Map<String, StepExecution> stepMap = allSteps.stream()
                 .collect(Collectors.toMap(StepExecution::getNodeIdRef, s -> s));
 
-        // Find children
-        List<String> childrenIds = definition.getEdges().stream()
+        // Determine which children to queue
+        NodeDto currentNode = definition.getNodes().stream()
+                .filter(n -> n.getId().equals(step.getNodeIdRef()))
+                .findFirst()
+                .orElse(null);
+
+        List<EdgeDto> outgoingEdges = definition.getEdges().stream()
                 .filter(e -> e.getSource().equals(step.getNodeIdRef()))
-                .map(EdgeDto::getTarget)
                 .toList();
 
-        for (String childId : childrenIds) {
+        // For CONDITIONAL nodes, filter edges by the condition result
+        if (currentNode != null && NodeType.CONDITIONAL.equals(currentNode.getType())) {
+            String result = String.valueOf(output != null ? output.getOrDefault("conditionResult", "false") : "false");
+            outgoingEdges = outgoingEdges.stream()
+                    .filter(e -> result.equals(e.getSourceHandle()))
+                    .toList();
+            log.info("CONDITIONAL node {} result: {}, routing to {} edge(s)", step.getNodeIdRef(), result,
+                    outgoingEdges.size());
+        }
+
+        for (EdgeDto edge : outgoingEdges) {
+            String childId = edge.getTarget();
             if (canRun(childId, definition, stepMap)) {
                 NodeDto childNode = definition.getNodes().stream()
                         .filter(n -> n.getId().equals(childId))
                         .findFirst()
                         .orElseThrow();
-                queueNode(childNode, stepMap.get(childId), execution.getId());
+
+                // Pass parent output as context for child node
+                Map<String, Object> childContext = new HashMap<>();
+                childContext.put("output", output);
+                queueNode(childNode, stepMap.get(childId), execution.getId(), childContext);
             }
         }
 
@@ -151,7 +170,7 @@ public class WorkflowOrchestrator {
         return true;
     }
 
-    private void queueNode(NodeDto node, StepExecution step, UUID executionId) {
+    private void queueNode(NodeDto node, StepExecution step, UUID executionId, Map<String, Object> additionalContext) {
         if (step == null)
             return;
 
@@ -162,31 +181,42 @@ public class WorkflowOrchestrator {
         if (node.getData() != null) {
             context.putAll(node.getData());
         }
-
-        NodeType nodeType;
-        try {
-            nodeType = NodeType.valueOf(node.getType());
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid node type: {}", node.getType());
-            return;
+        // Merge additional context (parent output)
+        if (additionalContext != null) {
+            context.putAll(additionalContext);
         }
 
-        ExecutionTask task = new ExecutionTask(executionId, step.getId(), node.getId(), nodeType, context);
+        ExecutionTask task = new ExecutionTask(executionId, step.getId(), node.getId(), node.getType(), context);
 
         // Check for delay
-        if (NodeType.DELAY == nodeType) {
-            long delay = 1000;
+        if (NodeType.DELAY.equals(node.getType())) {
+            long delay = 1000; // default 1 second in millis
             if (node.getData() != null && node.getData().containsKey("duration")) {
                 try {
-                    delay = Long.parseLong(node.getData().get("duration").toString());
+                    long duration = Long.parseLong(node.getData().get("duration").toString());
+                    String unit = "ms"; // default to milliseconds
+                    if (node.getData().containsKey("unit")) {
+                        unit = node.getData().get("unit").toString().toLowerCase();
+                    }
+                    delay = convertToMillis(duration, unit);
                 } catch (NumberFormatException e) {
-                    // ignore
+                    // ignore, use default
                 }
             }
             taskQueue.pushDelayed(task, delay).subscribe();
         } else {
             taskQueue.push(task).subscribe();
         }
+    }
+
+    private long convertToMillis(long duration, String unit) {
+        return switch (unit) {
+            case "s", "sec", "second", "seconds" -> duration * 1000;
+            case "m", "min", "minute", "minutes" -> duration * 60 * 1000;
+            case "h", "hr", "hour", "hours" -> duration * 60 * 60 * 1000;
+            case "ms", "milli", "millis", "millisecond", "milliseconds" -> duration;
+            default -> duration; // assume millis if unknown
+        };
     }
 
     private WorkflowDefinitionDto parseDefinition(String json) {

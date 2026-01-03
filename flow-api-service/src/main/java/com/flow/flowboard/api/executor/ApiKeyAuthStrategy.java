@@ -43,4 +43,13 @@ public class ApiKeyAuthStrategy implements AuthenticationStrategy {
     public boolean supports(ApiAuthenticationDto authentication) {
         return authentication instanceof ApiKeyAuthDto;
     }
+
+    @Override
+    public void contributeHeaders(java.util.Map<String, String> headers, ApiAuthenticationDto authentication) {
+        ApiKeyAuthDto apiKeyAuth = (ApiKeyAuthDto) authentication;
+        if ("header".equalsIgnoreCase(apiKeyAuth.getLocation())) {
+            headers.put(apiKeyAuth.getKeyName(), apiKeyAuth.getKeyValue());
+        }
+        // Query params are handled elsewhere
+    }
 }

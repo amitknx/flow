@@ -78,5 +78,18 @@ public class ExecuteEndpointResponse {
     /**
      * HTTP method used
      */
+    /**
+     * HTTP method used
+     */
     private String httpMethod;
+
+    /**
+     * Request headers sent
+     */
+    private Map<String, String> requestHeaders;
+
+    /**
+     * Request body sent
+     */
+    private Object requestBody;
 }
