@@ -35,9 +35,26 @@ public class HttpNodeExecutor implements NodeExecutor {
         UUID endpointId = UUID.fromString(endpointIdStr);
 
         // Build request from context (optional overrides)
-        ExecuteEndpointRequest request = ExecuteEndpointRequest.builder()
-                // TODO: Map other fields from context if needed (params, body, etc)
-                .build();
+        // Build request from context (optional overrides)
+        ExecuteEndpointRequest.ExecuteEndpointRequestBuilder requestBuilder = ExecuteEndpointRequest.builder();
+
+        if (context.containsKey("headers") && context.get("headers") instanceof Map) {
+            requestBuilder.headers((Map<String, String>) context.get("headers"));
+        }
+
+        if (context.containsKey("queryParams") && context.get("queryParams") instanceof Map) {
+            requestBuilder.queryParams((Map<String, String>) context.get("queryParams"));
+        }
+
+        if (context.containsKey("pathParams") && context.get("pathParams") instanceof Map) {
+            requestBuilder.pathParams((Map<String, String>) context.get("pathParams"));
+        }
+
+        if (context.containsKey("requestBody")) {
+            requestBuilder.requestBody(context.get("requestBody"));
+        }
+
+        ExecuteEndpointRequest request = requestBuilder.build();
 
         return apiExecutorService.executeEndpoint(endpointId, request)
                 .map(response -> {
