@@ -17,6 +17,7 @@ import java.util.UUID;
 public class HttpNodeExecutor implements NodeExecutor {
 
     private final ApiExecutorService apiExecutorService;
+    private final VariableResolver variableResolver;
 
     @Override
     public boolean supports(NodeType nodeType) {
@@ -35,23 +36,29 @@ public class HttpNodeExecutor implements NodeExecutor {
         UUID endpointId = UUID.fromString(endpointIdStr);
 
         // Build request from context (optional overrides)
-        // Build request from context (optional overrides)
         ExecuteEndpointRequest.ExecuteEndpointRequestBuilder requestBuilder = ExecuteEndpointRequest.builder();
 
         if (context.containsKey("headers") && context.get("headers") instanceof Map) {
-            requestBuilder.headers((Map<String, String>) context.get("headers"));
+            Map<String, String> resolvedHeaders = (Map<String, String>) variableResolver.resolve(context.get("headers"),
+                    context);
+            requestBuilder.headers(resolvedHeaders);
         }
 
         if (context.containsKey("queryParams") && context.get("queryParams") instanceof Map) {
-            requestBuilder.queryParams((Map<String, String>) context.get("queryParams"));
+            Map<String, String> resolvedParams = (Map<String, String>) variableResolver
+                    .resolve(context.get("queryParams"), context);
+            requestBuilder.queryParams(resolvedParams);
         }
 
         if (context.containsKey("pathParams") && context.get("pathParams") instanceof Map) {
-            requestBuilder.pathParams((Map<String, String>) context.get("pathParams"));
+            Map<String, String> resolvedPathParams = (Map<String, String>) variableResolver
+                    .resolve(context.get("pathParams"), context);
+            requestBuilder.pathParams(resolvedPathParams);
         }
 
         if (context.containsKey("requestBody")) {
-            requestBuilder.requestBody(context.get("requestBody"));
+            Object resolvedBody = variableResolver.resolve(context.get("requestBody"), context);
+            requestBuilder.requestBody(resolvedBody);
         }
 
         ExecuteEndpointRequest request = requestBuilder.build();

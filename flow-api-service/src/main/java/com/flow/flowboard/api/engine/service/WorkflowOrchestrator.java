@@ -102,6 +102,21 @@ public class WorkflowOrchestrator {
                     outgoingEdges.size());
         }
 
+        // Build comprehensive context with all previous step outputs
+        Map<String, Object> stepsContext = new HashMap<>();
+        for (StepExecution s : allSteps) {
+            if (s.getStatus() == StepStatus.SUCCESS && s.getOutputPayload() != null) {
+                try {
+                    Map<String, Object> stepOutput = objectMapper.readValue(s.getOutputPayload(), Map.class);
+                    Map<String, Object> stepData = new HashMap<>();
+                    stepData.put("outputs", stepOutput);
+                    stepsContext.put(s.getNodeIdRef(), stepData);
+                } catch (Exception e) {
+                    log.error("Failed to parse output for step {}", s.getId(), e);
+                }
+            }
+        }
+
         for (EdgeDto edge : outgoingEdges) {
             String childId = edge.getTarget();
             if (canRun(childId, definition, stepMap)) {
@@ -110,9 +125,10 @@ public class WorkflowOrchestrator {
                         .findFirst()
                         .orElseThrow();
 
-                // Pass parent output as context for child node
+                // Pass parent output and all previous steps as context
                 Map<String, Object> childContext = new HashMap<>();
                 childContext.put("output", output);
+                childContext.put("steps", stepsContext);
                 queueNode(childNode, stepMap.get(childId), execution.getId(), childContext);
             }
         }

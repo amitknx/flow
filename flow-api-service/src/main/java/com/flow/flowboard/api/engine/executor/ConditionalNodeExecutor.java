@@ -23,6 +23,7 @@ import java.util.Map;
 public class ConditionalNodeExecutor implements NodeExecutor {
 
     private final ConditionExpressionEvaluator expressionEvaluator;
+    private final VariableResolver variableResolver;
 
     @Override
     public boolean supports(NodeType nodeType) {
@@ -48,16 +49,21 @@ public class ConditionalNodeExecutor implements NodeExecutor {
                 return result;
             }
 
-            log.info("Evaluating condition: {}", condition);
+            // Resolve variables in the condition string
+            Object resolvedCondition = variableResolver.resolve(condition, context);
+            String finalCondition = resolvedCondition != null ? resolvedCondition.toString() : condition;
+
+            log.info("Evaluating condition: {} (resolved from: {})", finalCondition, condition);
 
             // Evaluate the expression
-            boolean conditionResult = expressionEvaluator.evaluate(condition, context);
+            boolean conditionResult = expressionEvaluator.evaluate(finalCondition, context);
 
             log.info("Condition result for node {}: {}", task.nodeId(), conditionResult);
 
             Map<String, Object> result = new HashMap<>();
             result.put("conditionResult", conditionResult);
             result.put("condition", condition);
+            result.put("resolvedCondition", finalCondition);
             return result;
         });
     }
