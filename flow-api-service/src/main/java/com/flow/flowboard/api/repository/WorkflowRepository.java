@@ -15,8 +15,10 @@ public interface WorkflowRepository extends JpaRepository<Workflow, UUID> {
 
     Page<Workflow> findByActiveTrue(Pageable pageable);
 
+    long countByActiveTrue();
+
     @Query("SELECT w FROM Workflow w WHERE w.active = true AND " +
-           "(LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-           "LOWER(w.description) LIKE LOWER(CONCAT('%', :search, '%')))")
+            "(LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "LOWER(w.description) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<Workflow> searchActiveWorkflows(@Param("search") String search, Pageable pageable);
 }
